@@ -1,0 +1,33 @@
+# Python virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Database files
+*.db
+*.sqlite3
+
+# Uploaded GLB files (binary assets, exclude from repo)
+backend/uploads/*.glb
+
+# Keep the uploads folder itself
+!backend/uploads/.gitkeep
+
+# Environment variables
+.env
+*.env
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Virtual Glasses Try-On — Try glasses in real-time using your camera with AI-powered face tracking">
+    <title>Virtual Glasses Try-On | Real-Time AR Experience</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>👓</text></svg>">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/frontend/css/styles.css">
+
+    <!-- Import map: tells the browser how to resolve bare specifiers like "three" -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <!-- Three.js + GLTFLoader (loaded as module, exposed globally) -->
+    <script type="module">
+        import * as THREE from "three";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+        // THREE is a frozen module namespace — can't assign properties to it directly.
+        // Spread it into a plain object so we can attach GLTFLoader alongside it.
+        window.THREE = Object.assign({}, THREE, { GLTFLoader });
+        window.__threejsReady = true;
+        window.dispatchEvent(new Event('threejs-ready'));
+    </script>
+    
+    <!-- MediaPipe Vision (loaded as module, exposed globally) -->
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver, DrawingUtils } from 
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
+        window.vision = { FaceLandmarker, FilesetResolver, DrawingUtils };
+        window.FaceLandmarker = FaceLandmarker;
+        window.FilesetResolver = FilesetResolver;
+        window.__mediapipeReady = true;
+        window.dispatchEvent(new Event('mediapipe-ready'));
+    </script>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="app-logo-circle" style="margin-bottom: 16px;">
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width:60px;height:60px;">
+                <circle cx="50" cy="50" r="48" fill="#0e75a1" />
+                <text x="50" y="65" font-family="'Outfit', sans-serif" font-size="50" font-weight="bold" fill="white" text-anchor="middle">V</text>
+            </svg>
+        </div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-message">Initializing...</div>
+    </div>
+
+    <!-- Error Overlay -->
+    <div id="error-overlay">
+        <div class="error-icon">⚠️</div>
+        <h2 class="error-title">Something went wrong</h2>
+        <p class="error-message" id="error-message">An error occurred while initializing the application.</p>
+        <button class="btn btn-primary" onclick="location.reload()">🔄 Retry</button>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main App Container -->
+    <div id="app-container">
+        <!-- Header -->
+        <header id="jeeliz-header">
+            <div class="logo-container">
+                <div class="jeeliz-logo">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="48" fill="#0e75a1" />
+                        <text x="50" y="65" font-family="'Outfit', sans-serif" font-size="50" font-weight="bold" fill="white" text-anchor="middle">V</text>
+                    </svg>
+                </div>
+                <div class="logo-text-group">
+                    <span class="logo-brand">VIRTUAL</span>
+                    <span class="logo-beta">TRY-ON</span>
+                </div>
+            </div>
+            <div class="header-tagline">Find your style. Let them know.</div>
+            <div class="header-actions">
+                <div id="face-status">
+                    <span id="face-status-dot"></span>
+                    <span id="face-status-text">No Face</span>
+                </div>
+                <div id="fps-counter">-- FPS</div>
+                <a href="/admin" class="admin-link-btn" title="Admin Panel">⚙️</a>
+            </div>
+        </header>
+
+        <!-- Main Workspace (Three Columns) -->
+        <main id="jeeliz-workspace">
+            <!-- Left Sidebar: Catalog -->
+            <aside id="jeeliz-left-sidebar">
+                <div class="sidebar-collapsible-tab">
+                    🔍
+                </div>
+                <div class="catalog-list-container">
+                    <div id="glasses-vertical-list">
+                        <!-- Dynamic glasses cards loaded here -->
+                        <div class="empty-state" id="empty-carousel">
+                            <div class="empty-state-icon">🕶️</div>
+                            <div class="empty-state-title">No Glasses Yet</div>
+                            <div class="empty-state-text">Upload glasses from the admin panel to get started</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="catalog-pagination" id="catalog-pagination">
+                    <!-- Dynamic page buttons, e.g. 1 2 3 4 ... 14 -->
+                </div>
+
+                <!-- Filters -->
+                <div class="catalog-filters">
+                    <span class="filter-label">Filter by:</span>
+                    <div class="filter-buttons">
+                        <button class="filter-btn" id="filter-gender">Gender</button>
+                        <button class="filter-btn" id="filter-brand">Brand</button>
+                        <button class="filter-btn" id="filter-price">Price</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center Column: Try-On Camera Viewport -->
+            <section id="jeeliz-center-viewport">
+                <!-- Camera feed and Threejs overlay -->
+                <div id="camera-viewport-wrapper">
+                    <!-- Keep camera-viewport layout but adapt sizes/styles -->
+                    <div id="camera-viewport">
+                        <video id="camera-video" autoplay playsinline></video>
+                        <canvas id="glasses-canvas"></canvas>
+                    </div>
+
+                    <!-- Overlay Left Navigation Arrow -->
+                    <button class="nav-arrow nav-arrow-left" id="btn-prev-glasses" title="Previous Style">
+                        ‹
+                    </button>
+
+                    <!-- Overlay Right Navigation Arrow -->
+                    <button class="nav-arrow nav-arrow-right" id="btn-next-glasses" title="Next Style">
+                        ›
+                    </button>
+
+                    <!-- Bottom center camera capture button -->
+                    <button class="jeeliz-capture-btn" id="btn-screenshot-trigger" title="Take a picture">
+                        <div class="capture-icon-inner"></div>
+                    </button>
+
+                    <!-- Bottom Left Link -->
+                    <div class="viewport-bottom-link viewport-bottom-left" id="link-frame-position">
+                        <span class="link-icon">✥</span>
+                        <span class="link-text">Frame Position</span>
+                    </div>
+
+                    <!-- Bottom Right Link -->
+                    <div class="viewport-bottom-link viewport-bottom-right" id="link-all-prices">
+                        <span class="link-icon">🏷️</span>
+                        <span class="link-text">All Prices</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Sidebar: Shortlist / Snapshot View -->
+            <aside id="jeeliz-right-sidebar">
+                <div class="shortlist-box">
+                    <div class="shortlist-preview-container" id="shortlist-preview-container">
+                        <!-- Default Avatar Silhouette -->
+                        <div class="avatar-silhouette" id="shortlist-placeholder">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="50" cy="35" r="20" fill="#e0e0e0" />
+                                <path d="M50 60c-25 0-35 15-35 25v5h70v-5c0-10-10-25-35-25z" fill="#e0e0e0" />
+                            </svg>
+                            <span class="placeholder-text">Take a picture to shortlist a style</span>
+                        </div>
+                        <img id="shortlist-image" class="shortlist-snapshot-img" style="display: none;" />
+                    </div>
+                    
+                    <!-- Circular Actions below the shortlist preview -->
+                    <div class="shortlist-actions">
+                        <button class="action-circle-btn disabled" id="btn-reset-shortlist" title="Reset Picture">
+                            ⟲
+                        </button>
+                        <button class="action-circle-btn disabled" id="btn-share-shortlist" title="Share Style">
+                            ✈
+                        </button>
+                        <button class="action-circle-btn disabled" id="btn-buy-shortlist" title="See Prices">
+                            🏷️
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vintage Filter Toggle -->
+                <div class="vintage-filter-container">
+                    <span class="vintage-label">Vintage Filter</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="vintage-filter-toggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Footer -->
+        <footer id="jeeliz-footer">
+            <div class="footer-links">
+                <a href="#" class="footer-link">Contact</a>
+                <a href="#" class="footer-link">About</a>
+            </div>
+        </footer>
+    </div>
+
+
+    <!-- Application Scripts (order matters!) -->
+    <script src="/frontend/js/cameraManager.js"></script>
+    <script src="/frontend/js/faceTracker.js"></script>
+    <script src="/frontend/js/glassesRenderer.js"></script>
+    <script src="/frontend/js/glassesAPI.js"></script>
+    <script src="/frontend/js/app.js"></script>
+</body>
+</html>

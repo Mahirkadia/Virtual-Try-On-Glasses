@@ -1,0 +1,21 @@
+{
+  "name": "Aviator Classic",
+  "category": "sunglasses",
+  "brand": "Ray-Ban",
+  "description": "Premium virtual try-on glasses model auto-calibrated from glTF bounding box.",
+  "frame_color": "Gold",
+  "bbox_min": [-0.65191, -0.23201, -0.05856],
+  "bbox_max": [0.65191, 0.19042, 1.02092],
+  "scale_x": 1.0,
+  "scale_y": 1.0,
+  "scale_z": 1.0,
+  "position_offset_x": 0.0,
+  "position_offset_y": 0.0,
+  "position_offset_z": 0.0,
+  "rotation_offset_x": 0,
+  "rotation_offset_y": 0,
+  "rotation_offset_z": 0,
+  "bridge_width": 0.04,
+  "temple_length": 0.12,
+  "lens_opacity": 0.3
+}

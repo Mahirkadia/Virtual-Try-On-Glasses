@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin panel for Virtual Glasses Try-On — Upload and manage GLB glasses models">
+    <title>Admin Panel | Virtual Glasses Try-On</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚙️</text></svg>">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/frontend/css/styles.css">
+
+    <!-- Three.js (for 3D preview, loaded as module, exposed globally) -->
+    <script type="module">
+        import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+        import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+        import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+        
+        window.THREE = THREE;
+        window.THREE.GLTFLoader = GLTFLoader;
+        window.THREE.OrbitControls = OrbitControls;
+        
+        // Dispatch event so admin knows Three.js is ready
+        window.dispatchEvent(new Event('threejs-ready'));
+    </script>
+</head>
+<body class="admin-page">
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal">
+            <h3 class="modal-title">⚠️ Delete Glasses</h3>
+            <p class="modal-body">Are you sure you want to delete this glasses model? This action cannot be undone.</p>
+            <div class="modal-actions">
+                <button class="btn" id="btn-cancel-delete">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-delete">🗑️ Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <h1>⚙️ Admin Panel</h1>
+            <nav class="admin-nav">
+                <a href="/" class="btn btn-sm">👓 Try-On App</a>
+                <button class="btn btn-primary btn-sm" id="btn-refresh">🔄 Refresh</button>
+            </nav>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon purple">👓</div>
+                <div>
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">Total Models</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon cyan">📁</div>
+                <div>
+                    <div class="stat-value" id="stat-categories">0</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon emerald">✅</div>
+                <div>
+                    <div class="stat-value" id="stat-active">0</div>
+                    <div class="stat-label">Active</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon amber">💾</div>
+                <div>
+                    <div class="stat-value" id="stat-size">0 MB</div>
+                    <div class="stat-label">Storage Used</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <h2 class="section-title"><span class="icon">📤</span> Upload New Glasses</h2>
+            
+            <!-- GLB Upload Zone -->
+            <div class="upload-zone" id="glb-upload-zone">
+                <span class="upload-zone-icon">📦</span>
+                <div class="upload-zone-title">Drop GLB Model Here</div>
+                <div class="upload-zone-text">or click to browse files</div>
+                <div class="upload-zone-formats">
+                    <span class="format-badge">.GLB</span>
+                    <span class="format-badge">.GLTF</span>
+                </div>
+                <input type="file" id="glb-file-input" accept=".glb,.gltf" hidden>
+            </div>
+
+            <!-- File Info (shown after file selected) -->
+            <div class="file-info hidden" id="glb-file-info">
+                <span class="file-info-icon">📦</span>
+                <span class="file-info-name" id="glb-file-name">model.glb</span>
+                <span class="file-info-size" id="glb-file-size">0 KB</span>
+                <button class="btn btn-sm btn-danger" id="btn-remove-file">✕</button>
+            </div>
+
+            <!-- JSON Metadata Upload -->
+            <div class="json-upload-zone hidden" id="json-upload-zone">
+                <span>📋 Drop JSON metadata file here (optional)</span>
+                <input type="file" id="json-file-input" accept=".json" hidden>
+            </div>
+
+            <!-- Upload Form (shown after GLB selected) -->
+            <form class="upload-form" id="upload-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="glasses-name">Name *</label>
+                        <input class="form-input" type="text" id="glasses-name" name="name" placeholder="e.g. Aviator Classic" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="glasses-category">Category *</label>
+                        <select class="form-select" id="glasses-category" name="category" required>
+                            <option value="sunglasses">🕶️ Sunglasses</option>
+                            <option value="eyeglasses">👓 Eyeglasses</option>
+                            <option value="fashion">✨ Fashion</option>
+                            <option value="sports">🏃 Sports</option>
+                            <option value="reading">📖 Reading</option>
+                            <option value="other">📦 Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="glasses-brand">Brand</label>
+                        <input class="form-input" type="text" id="glasses-brand" name="brand" placeholder="e.g. Ray-Ban">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="glasses-frame-color">Frame Color</label>
+                        <input class="form-input" type="text" id="glasses-frame-color" name="frame_color" placeholder="e.g. Black, Gold, Tortoise">
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label" for="glasses-description">Description</label>
+                        <textarea class="form-textarea" id="glasses-description" name="description" placeholder="Brief description of the glasses..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Transform Controls -->
+                <div class="transform-section">
+                    <h3 class="transform-section-title">📐 Scale</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-x" name="scale_x" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-x-value">1.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-y" name="scale_y" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-y-value">1.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-z" name="scale_z" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-z-value">1.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="transform-section">
+                    <h3 class="transform-section-title">📍 Position Offset</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-x" name="position_offset_x" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-x-value">0.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-y" name="position_offset_y" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-y-value">0.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-z" name="position_offset_z" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-z-value">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="transform-section">
+                    <h3 class="transform-section-title">🔄 Rotation Offset (degrees)</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X (Pitch)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-x" name="rotation_offset_x" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-x-value">0°</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y (Yaw)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-y" name="rotation_offset_y" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-y-value">0°</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z (Roll)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-z" name="rotation_offset_z" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-z-value">0°</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="transform-section">
+                    <h3 class="transform-section-title">🔧 Fit Parameters</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label">Bridge Width</label>
+                            <div class="slider-group">
+                                <input type="range" id="bridge-width" name="bridge_width" min="0.01" max="0.15" step="0.005" value="0.04">
+                                <span class="slider-value" id="bridge-width-value">0.040</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Temple Length</label>
+                            <div class="slider-group">
+                                <input type="range" id="temple-length" name="temple_length" min="0.05" max="0.25" step="0.005" value="0.12">
+                                <span class="slider-value" id="temple-length-value">0.120</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Lens Opacity</label>
+                            <div class="slider-group">
+                                <input type="range" id="lens-opacity" name="lens_opacity" min="0.0" max="1.0" step="0.05" value="0.3">
+                                <span class="slider-value" id="lens-opacity-value">0.30</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3D Preview -->
+                <div class="transform-section" id="preview-section" style="display: none;">
+                    <h3 class="transform-section-title">👁️ 3D Preview</h3>
+                    <canvas id="preview-canvas" style="width: 100%; height: 300px; border-radius: var(--radius-md); background: #111;"></canvas>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn" id="btn-cancel-upload">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btn-submit-upload">
+                        📤 Upload Glasses
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Glasses Management -->
+        <section class="glasses-management">
+            <h2 class="section-title"><span class="icon">📋</span> Uploaded Glasses</h2>
+
+            <div class="glasses-table-wrapper">
+                <table class="glasses-table" id="glasses-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Brand</th>
+                            <th>Scale</th>
+                            <th>File</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="glasses-table-body">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                No glasses uploaded yet. Use the upload form above.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/frontend/js/glassesAPI.js"></script>
+    <script src="/frontend/js/admin.js"></script>
+</body>
+</html>
