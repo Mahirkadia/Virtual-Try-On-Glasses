@@ -255,6 +255,155 @@ class FaceTracker {
     }
 
     /**
+     * Get transform data for placing earrings on the ears.
+     * @returns {object|null} Position, rotation, and scale for Three.js
+     */
+    getEarringsData() {
+        if (!this._hasFace() || !this.smoothedLandmarks) {
+            return null;
+        }
+
+        const lm = this.smoothedLandmarks;
+        const aspect = this._videoWidth / this._videoHeight;
+
+        // Midpoint between ears or outer eye corners as position anchor
+        const leftEar = lm[this.LANDMARKS.LEFT_EAR];
+        const rightEar = lm[this.LANDMARKS.RIGHT_EAR];
+
+        const leftEarW = {
+            x: (leftEar.x - 0.5) * 2.0 * aspect,
+            y: -(leftEar.y - 0.5) * 2.0,
+            z: -leftEar.z * 2.0 * aspect
+        };
+        const rightEarW = {
+            x: (rightEar.x - 0.5) * 2.0 * aspect,
+            y: -(rightEar.y - 0.5) * 2.0,
+            z: -rightEar.z * 2.0 * aspect
+        };
+
+        // Midpoint of the ears is the anchor position
+        const worldX = (leftEarW.x + rightEarW.x) / 2;
+        const worldY = (leftEarW.y + rightEarW.y) / 2;
+        const worldZ = (leftEarW.z + rightEarW.z) / 2;
+
+        // Scale is based on the 3D distance between the ears
+        const earSpan = Math.sqrt(
+            (leftEarW.x - rightEarW.x) ** 2 +
+            (leftEarW.y - rightEarW.y) ** 2 +
+            (leftEarW.z - rightEarW.z) ** 2
+        );
+        const scale = earSpan;
+
+        // Rotation matches head rotation
+        const rotation = this.smoothedRotation || { pitch: 0, yaw: 0, roll: 0 };
+        
+        // Geometric roll for stability
+        const leftEyeOuter  = lm[this.LANDMARKS.LEFT_EYE_OUTER];
+        const rightEyeOuter = lm[this.LANDMARKS.RIGHT_EYE_OUTER];
+        const eyeDx = leftEyeOuter.x - rightEyeOuter.x;
+        const eyeDy = leftEyeOuter.y - rightEyeOuter.y;
+        const geomRoll = Math.atan2(eyeDy, eyeDx);
+
+        return {
+            position: { x: worldX, y: worldY, z: worldZ },
+            rotation: { x: rotation.pitch, y: rotation.yaw, z: geomRoll },
+            scale,
+            leftEar: leftEarW,
+            rightEar: rightEarW
+        };
+    }
+
+    /**
+     * Get transform data for placing a necklace around the neck.
+     * @returns {object|null} Position, rotation, and scale for Three.js
+     */
+    getNecklaceData() {
+        if (!this._hasFace() || !this.smoothedLandmarks) {
+            return null;
+        }
+
+        const lm = this.smoothedLandmarks;
+        const aspect = this._videoWidth / this._videoHeight;
+
+        const chin = lm[this.LANDMARKS.CHIN];
+        const forehead = lm[this.LANDMARKS.FOREHEAD];
+        const leftEar = lm[this.LANDMARKS.LEFT_EAR];
+        const rightEar = lm[this.LANDMARKS.RIGHT_EAR];
+
+        const chinW = {
+            x: (chin.x - 0.5) * 2.0 * aspect,
+            y: -(chin.y - 0.5) * 2.0,
+            z: -chin.z * 2.0 * aspect
+        };
+        const foreheadW = {
+            x: (forehead.x - 0.5) * 2.0 * aspect,
+            y: -(forehead.y - 0.5) * 2.0,
+            z: -forehead.z * 2.0 * aspect
+        };
+        const leftEarW = {
+            x: (leftEar.x - 0.5) * 2.0 * aspect,
+            y: -(leftEar.y - 0.5) * 2.0,
+            z: -leftEar.z * 2.0 * aspect
+        };
+        const rightEarW = {
+            x: (rightEar.x - 0.5) * 2.0 * aspect,
+            y: -(rightEar.y - 0.5) * 2.0,
+            z: -rightEar.z * 2.0 * aspect
+        };
+
+        const faceHeight = Math.sqrt(
+            (foreheadW.x - chinW.x) ** 2 +
+            (foreheadW.y - chinW.y) ** 2 +
+            (foreheadW.z - chinW.z) ** 2
+        );
+
+        // Position: shifted below the chin along the neck axis
+        const faceDirY = {
+            x: chinW.x - foreheadW.x,
+            y: chinW.y - foreheadW.y,
+            z: chinW.z - foreheadW.z
+        };
+        const lenY = Math.sqrt(faceDirY.x*faceDirY.x + faceDirY.y*faceDirY.y + faceDirY.z*faceDirY.z);
+        faceDirY.x /= lenY;
+        faceDirY.y /= lenY;
+        faceDirY.z /= lenY;
+
+        // Shift down from the chin by about 42% of the face height
+        const shiftY = faceHeight * 0.42;
+        // Shift slightly backward to sit on the neck
+        const shiftZ = -faceHeight * 0.12;
+
+        const worldX = chinW.x + faceDirY.x * shiftY;
+        const worldY = chinW.y + faceDirY.y * shiftY;
+        const worldZ = chinW.z + faceDirY.z * shiftY + shiftZ;
+
+        // Scale: based on face width (ear span) to scale the neck loop size
+        const earSpan = Math.sqrt(
+            (leftEarW.x - rightEarW.x) ** 2 +
+            (leftEarW.y - rightEarW.y) ** 2 +
+            (leftEarW.z - rightEarW.z) ** 2
+        );
+        const scale = earSpan * 1.05;
+
+        // Rotation matches head rotation
+        const rotation = this.smoothedRotation || { pitch: 0, yaw: 0, roll: 0 };
+        
+        // Geometric roll for stability
+        const leftEyeOuter  = lm[this.LANDMARKS.LEFT_EYE_OUTER];
+        const rightEyeOuter = lm[this.LANDMARKS.RIGHT_EYE_OUTER];
+        const eyeDx = leftEyeOuter.x - rightEyeOuter.x;
+        const eyeDy = leftEyeOuter.y - rightEyeOuter.y;
+        const geomRoll = Math.atan2(eyeDy, eyeDx);
+
+        return {
+            position: { x: worldX, y: worldY, z: worldZ },
+            rotation: { x: rotation.pitch * 0.8, y: rotation.yaw * 0.8, z: geomRoll * 0.8 },
+            scale,
+            faceHeight
+        };
+    }
+
+    /**
      * Apply Exponential Moving Average (EMA) smoothing to landmarks.
      * @param {Array} rawLandmarks - Current frame landmarks
      * @returns {Array} Smoothed landmarks
@@ -382,9 +531,10 @@ class FaceTracker {
             roll  = 0;
         }
 
-        // Negate yaw: canvas is horizontally mirrored (CSS scaleX(-1)),
-        // so left/right head turns must be flipped to stay aligned.
+        // Negate yaw and roll: canvas is horizontally mirrored (CSS scaleX(-1)),
+        // so left/right head turns and tilts must be flipped to stay aligned.
         yaw = -yaw;
+        roll = -roll;
 
         return { pitch, yaw, roll };
     }
@@ -421,29 +571,43 @@ class FaceTracker {
                          leftEyeOuter.x  + rightEyeOuter.x) / 4;
         const anchorY = (leftEyeInner.y  + rightEyeInner.y +
                          leftEyeOuter.y  + rightEyeOuter.y) / 4;
+        const anchorZ = (leftEyeInner.z  + rightEyeInner.z +
+                         leftEyeOuter.z  + rightEyeOuter.z) / 4;
 
         // MediaPipe normalized → orthographic world coords
         const worldX = (anchorX - 0.5) * 2.0 * aspect;
         const worldY = -(anchorY - 0.5) * 2.0;
-        const worldZ = 0;
+        // Map MediaPipe Z coordinate (multiplied by aspect to match coordinate scaling)
+        const worldZ = -anchorZ * 2.0 * aspect;
 
-        // ── SCALE: span between outer eye corners in world units ──────────────
-        const eyeSpanNorm = Math.abs(leftEyeOuter.x - rightEyeOuter.x);
-        const scale = eyeSpanNorm * 2.0 * aspect * 1.6;
+        // ── SCALE: 3D distance between outer eye corners to prevent shrinking on turn ──
+        const leftW = {
+            x: leftEyeOuter.x * 2.0 * aspect,
+            y: -leftEyeOuter.y * 2.0,
+            z: -leftEyeOuter.z * 2.0 * aspect
+        };
+        const rightW = {
+            x: rightEyeOuter.x * 2.0 * aspect,
+            y: -rightEyeOuter.y * 2.0,
+            z: -rightEyeOuter.z * 2.0 * aspect
+        };
+        const scale = Math.sqrt(
+            (leftW.x - rightW.x) ** 2 +
+            (leftW.y - rightW.y) ** 2 +
+            (leftW.z - rightW.z) ** 2
+        ) * 1.65; // Slightly adjusted scale factor for perfect face fit
 
-        // ── ROTATION: only Z-roll (head tilt) ────────────────────────────────
-        // Roll from the geometric eye-line angle — most accurate source.
-        // Pitch (X) and yaw (Y) are intentionally kept at 0:
-        //   - Position already moves with the face perfectly via landmarks.
-        //   - Applying 3D yaw/pitch rotates the model around its own center,
-        //     which shifts the glasses away from the eye anchor point.
+        // ── ROTATION: Full 3D rotation (pitch, yaw, roll) ────────────────────
+        const rotation = this.smoothedRotation || { pitch: 0, yaw: 0, roll: 0 };
+
+        // Geometric roll is highly stable and automatically handles screen orientation
         const eyeDx = leftEyeOuter.x - rightEyeOuter.x;
         const eyeDy = leftEyeOuter.y - rightEyeOuter.y;
-        const roll  = Math.atan2(eyeDy, eyeDx);
+        const geomRoll = Math.atan2(eyeDy, eyeDx);
 
         return {
             position: { x: worldX, y: worldY, z: worldZ },
-            rotation: { x: 0, y: 0, z: roll },
+            rotation: { x: rotation.pitch, y: rotation.yaw, z: geomRoll },
             scale
         };
     }

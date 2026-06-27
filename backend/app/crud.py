@@ -11,8 +11,8 @@ from fastapi import UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .models import Glasses
-from .schemas import GlassesCreate, GlassesUpdate
+from .models import Glasses, Jewelry
+from .schemas import GlassesCreate, GlassesUpdate, JewelryCreate, JewelryUpdate
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 
@@ -179,3 +179,124 @@ def get_categories(db: Session) -> Sequence[Tuple[str, int]]:
         .all()
     )
     return rows
+
+
+# ===========================================================================
+# Jewelry CRUD
+# ===========================================================================
+
+def create_jewelry(
+    db: Session,
+    jewelry_data: JewelryCreate,
+    glb_file: UploadFile,
+) -> Jewelry:
+    """Save the uploaded GLB file and insert a new Jewelry row."""
+    uuid_filename, original_filename, file_size = _save_upload(glb_file)
+
+    db_jewelry = Jewelry(
+        **jewelry_data.model_dump(),
+        glb_filename=uuid_filename,
+        original_filename=original_filename,
+        file_size=file_size,
+    )
+    db.add(db_jewelry)
+    db.commit()
+    db.refresh(db_jewelry)
+    return db_jewelry
+
+
+def get_jewelry(db: Session, jewelry_id: int) -> Optional[Jewelry]:
+    """Return a single Jewelry row by primary key, or ``None``."""
+    return db.query(Jewelry).filter(Jewelry.id == jewelry_id).first()
+
+
+def get_all_jewelry(
+    db: Session,
+    category: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> Tuple[List[Jewelry], int]:
+    """Return a paginated list of jewelry with an optional category filter.
+
+    Returns:
+        (items, total_count)
+    """
+    query = db.query(Jewelry).filter(Jewelry.is_active == True)  # noqa: E712
+
+    if category:
+        query = query.filter(Jewelry.category == category)
+
+    total = query.count()
+    items = query.order_by(Jewelry.created_at.desc()).offset(skip).limit(limit).all()
+    return items, total
+
+
+def update_jewelry(
+    db: Session,
+    jewelry_id: int,
+    update_data: JewelryUpdate,
+) -> Optional[Jewelry]:
+    """Apply a partial update to an existing Jewelry row."""
+    db_jewelry = get_jewelry(db, jewelry_id)
+    if db_jewelry is None:
+        return None
+
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(db_jewelry, field, value)
+
+    db.commit()
+    db.refresh(db_jewelry)
+    return db_jewelry
+
+
+def update_jewelry_file(
+    db: Session,
+    jewelry_id: int,
+    new_file: UploadFile,
+) -> Optional[Jewelry]:
+    """Replace the GLB file for an existing jewelry entry."""
+    db_jewelry = get_jewelry(db, jewelry_id)
+    if db_jewelry is None:
+        return None
+
+    # Remove the old file
+    _delete_file(db_jewelry.glb_filename)
+
+    # Save the new one
+    uuid_filename, original_filename, file_size = _save_upload(new_file)
+    db_jewelry.glb_filename = uuid_filename
+    db_jewelry.original_filename = original_filename
+    db_jewelry.file_size = file_size
+
+    db.commit()
+    db.refresh(db_jewelry)
+    return db_jewelry
+
+
+def delete_jewelry(db: Session, jewelry_id: int) -> bool:
+    """Delete a Jewelry row and its associated GLB file.
+
+    Returns ``True`` if the row existed and was deleted.
+    """
+    db_jewelry = get_jewelry(db, jewelry_id)
+    if db_jewelry is None:
+        return False
+
+    _delete_file(db_jewelry.glb_filename)
+    db.delete(db_jewelry)
+    db.commit()
+    return True
+
+
+def get_jewelry_categories(db: Session) -> Sequence[Tuple[str, int]]:
+    """Return distinct jewelry categories with their active counts."""
+    rows = (
+        db.query(Jewelry.category, func.count(Jewelry.id))
+        .filter(Jewelry.is_active == True)  # noqa: E712
+        .group_by(Jewelry.category)
+        .order_by(Jewelry.category)
+        .all()
+    )
+    return rows
+

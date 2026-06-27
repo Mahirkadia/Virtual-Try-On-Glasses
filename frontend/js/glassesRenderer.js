@@ -132,6 +132,23 @@ class GlassesRenderer {
         this.glassesGroup.visible = false;
         this.scene.add(this.glassesGroup);
 
+        // ---- Head Occlusion Mesh ----
+        // This mesh is invisible but writes to depth buffer to hide the temples of the glasses
+        // behind the ears and sides of the head as the user turns their head.
+        const occRadius = 0.40;
+        const occHeight = 1.6;
+        const occGeometry = new THREE.CylinderGeometry(occRadius, occRadius, occHeight, 32);
+        const occMaterial = new THREE.MeshBasicMaterial({
+            color: 0x000000,
+            colorWrite: false, // Invisible
+            depthWrite: true   // Block things behind it
+        });
+        this.occlusionMesh = new THREE.Mesh(occGeometry, occMaterial);
+        // Position it slightly lower and behind the glasses plane (to align with the head shape)
+        this.occlusionMesh.position.set(0, -0.15, -0.65);
+        this.occlusionMesh.renderOrder = 1; // Render first to block colors behind it
+        this.glassesGroup.add(this.occlusionMesh);
+
         // ---- GLTF Loader ----
         this._initLoader();
 
@@ -412,7 +429,7 @@ class GlassesRenderer {
             this._currentRotation.x,
             this._currentRotation.y,
             this._currentRotation.z,
-            'XYZ'
+            'ZYX'
         );
 
         this.glassesGroup.scale.setScalar(this._currentScale);
@@ -580,6 +597,16 @@ class GlassesRenderer {
     destroy() {
         // Remove current model
         this.removeCurrentModel();
+
+        // Dispose of head occlusion mesh resources
+        if (this.occlusionMesh) {
+            if (this.glassesGroup) {
+                this.glassesGroup.remove(this.occlusionMesh);
+            }
+            this.occlusionMesh.geometry.dispose();
+            this.occlusionMesh.material.dispose();
+            this.occlusionMesh = null;
+        }
 
         // Clear cache
         this.clearCache();

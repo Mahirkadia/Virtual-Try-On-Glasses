@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Virtual Jewelry Try-On — Try luxury rings in real-time using your camera with AI-powered tracking.">
+    <title>Luxury Jewelry Virtual Try-On | Rings</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>💍</text></svg>">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/frontend/css/jewelry.css">
+
+    <!-- Import map: resolves Three.js and GLTFLoader modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <!-- Three.js + GLTFLoader (loaded as module, exposed globally) -->
+    <script type="module">
+        import * as THREE from "three";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+
+        window.THREE = Object.assign({}, THREE, { GLTFLoader, DRACOLoader });
+        window.__threejsReady = true;
+        window.dispatchEvent(new Event('threejs-ready'));
+    </script>
+    
+    <!-- MediaPipe Vision (loaded as module, exposed globally) -->
+    <script type="module">
+        import { HandLandmarker, FilesetResolver, DrawingUtils } from 
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
+        window.vision = { HandLandmarker, FilesetResolver, DrawingUtils };
+        window.HandLandmarker = HandLandmarker;
+        window.FilesetResolver = FilesetResolver;
+        window.__mediapipeReady = true;
+        window.dispatchEvent(new Event('mediapipe-ready'));
+    </script>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="loading-logo">💍</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-message">Initializing digital showroom...</div>
+    </div>
+
+    <!-- Error Overlay -->
+    <div id="error-overlay">
+        <div class="error-icon">⚠️</div>
+        <h2 class="error-title">Initialization Failed</h2>
+        <p class="error-message" id="error-message">Could not access camera or load virtual models.</p>
+        <button class="btn btn-primary" onclick="location.reload()">🔄 Reload Showroom</button>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main Container -->
+    <div id="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo-container">
+                <div class="logo-icon">💍</div>
+                <div class="logo-text-group">
+                    <span class="logo-brand">KIREI JEWELS</span>
+                    <span class="logo-tag">Virtual Try-On</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <div id="hand-status">
+                    <span id="hand-status-dot"></span>
+                    <span id="hand-status-text">No Hand</span>
+                </div>
+                <div id="fps-counter">-- FPS</div>
+                <a href="/" class="home-btn" title="Back to Eyewear Section">🕶️</a>
+            </div>
+        </header>
+
+        <!-- Workspace -->
+        <main>
+            <!-- Left Sidebar -->
+            <aside id="left-sidebar">
+                <h3 class="catalog-title">Showroom Catalog</h3>
+                <div id="product-list"></div>
+            </aside>
+
+            <!-- Center Viewport -->
+            <section id="center-viewport">
+                <div id="camera-viewport-wrapper">
+                    <div id="camera-viewport">
+                        <video id="camera-video" autoplay playsinline></video>
+                        <canvas id="jewelry-canvas"></canvas>
+                    </div>
+
+                    <div class="product-overlay-info">
+                        <h4 id="selected-product-title">Loading product...</h4>
+                        <span id="selected-product-brand">Brand</span>
+                        <p id="selected-product-desc">Product description.</p>
+                    </div>
+
+                    <button class="jeeliz-capture-btn" id="btn-screenshot-trigger" title="Snapshot Try-On">
+                        <div class="capture-icon-inner"></div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside id="right-sidebar">
+                <div class="shortlist-box">
+                    <h3 class="shortlist-title">My Shortlist</h3>
+                    <div class="shortlist-preview-container" id="shortlist-preview-container">
+                        <div class="avatar-silhouette" id="shortlist-placeholder">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="50" cy="35" r="18" fill="#33333b" />
+                                <path d="M50 56c-20 0-30 12-30 20v4h60v-4c0-8-10-20-35-20z" fill="#33333b" />
+                                <circle cx="50" cy="50" r="12" stroke="#c5a880" stroke-width="2" fill="none" />
+                            </svg>
+                            <span class="placeholder-text">Take a snapshot to save your try-on style</span>
+                        </div>
+                        <img id="shortlist-image" class="shortlist-snapshot-img" alt="Shortlisted Style" style="display: none;" />
+                    </div>
+                    <div class="shortlist-actions">
+                        <button class="action-circle-btn disabled" id="btn-reset-shortlist" title="Reset Photo">⟲</button>
+                        <button class="action-circle-btn disabled" id="btn-share-shortlist" title="Download Photo">✈</button>
+                        <button class="action-circle-btn disabled" id="btn-buy-shortlist" title="View Prices">🏷️</button>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/frontend/js/cameraManager.js"></script>
+    <script src="/frontend/js/handTracker.js"></script>
+    <script src="/frontend/js/jewelryRenderer.js"></script>
+    <script src="/frontend/js/jewelryAPI.js"></script>
+    <script src="/frontend/js/jewelryApp.js"></script>
+</body>
+</html>
