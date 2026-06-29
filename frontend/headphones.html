@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Virtual Headphones & Earbuds Try-On — Test premium audio gear in real-time with AI-powered face mapping.">
+    <title>Acoustic Gear Virtual Try-On | 3D Simulation</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>🎧</text></svg>">
+    
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="/frontend/css/headphones.css">
+
+    <!-- Import map for THREE modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <!-- Three.js + GLTFLoader (module loaded and globally bound) -->
+    <script type="module">
+        import * as THREE from "three";
+        import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+        import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
+
+        window.THREE = Object.assign({}, THREE, { GLTFLoader, DRACOLoader });
+        window.__threejsReady = true;
+        window.dispatchEvent(new Event('threejs-ready'));
+    </script>
+    
+    <!-- MediaPipe Vision (module loaded and globally bound) -->
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver, DrawingUtils } from 
+            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs";
+        window.vision = { FaceLandmarker, FilesetResolver, DrawingUtils };
+        window.FaceLandmarker = FaceLandmarker;
+        window.FilesetResolver = FilesetResolver;
+        window.__mediapipeReady = true;
+        window.dispatchEvent(new Event('mediapipe-ready'));
+    </script>
+</head>
+<body>
+    <div class="bg-glow"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="loading-logo">🎧</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-message">Calibrating acoustic space...</div>
+    </div>
+
+    <!-- Error Overlay -->
+    <div id="error-overlay">
+        <div class="error-icon">⚠️</div>
+        <h2 class="error-title">Calibration Failed</h2>
+        <p class="error-message" id="error-message">Could not access camera or locate landmarks.</p>
+        <button class="btn" onclick="location.reload()">🔄 Restart</button>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Main Container -->
+    <div id="app-container">
+        <!-- Header -->
+        <header>
+            <div class="logo-container">
+                <div class="logo-icon">🎧</div>
+                <div class="logo-text-group">
+                    <span class="logo-brand">VIRTUAL TRY-ON</span>
+                    <span class="logo-tag">Acoustics</span>
+                </div>
+            </div>
+
+            <!-- Global Category Navigation Menu -->
+            <div class="section-nav-tabs">
+                <a href="/" class="section-nav-link">Glasses</a>
+                <a href="/jewelry" class="section-nav-link">Jewelry</a>
+                <a href="/headphones" class="section-nav-link active">Headphones</a>
+            </div>
+
+            <div class="header-actions">
+                <div id="face-status">
+                    <span id="face-status-dot"></span>
+                    <span id="face-status-text">Scanning Head</span>
+                </div>
+                <div id="fps-counter">-- FPS</div>
+                <a href="/headphones-admin" class="admin-link-btn" title="Headphones Admin Panel">⚙️</a>
+            </div>
+        </header>
+
+        <!-- Workspace -->
+        <main>
+            <!-- Left Sidebar -->
+            <aside id="left-sidebar">
+                <h3 class="catalog-title">Acoustic Gallery</h3>
+                
+                <!-- Category filtering (All, Headphones, Earbuds) -->
+                <div class="category-filter-tabs">
+                    <button class="tab-btn active" data-category="all">All</button>
+                    <button class="tab-btn" data-category="headphone">Headphones</button>
+                    <button class="tab-btn" data-category="earbud">Earbuds</button>
+                </div>
+
+                <div id="product-list">
+                    <!-- Dynamic cards are loaded here -->
+                </div>
+            </aside>
+
+            <!-- Center Viewport -->
+            <section id="center-viewport">
+                <div id="camera-viewport-wrapper">
+                    <div id="camera-viewport">
+                        <video id="camera-video" autoplay playsinline></video>
+                        <canvas id="headphones-canvas"></canvas>
+                    </div>
+
+                    <!-- Description panel overlay for the selected product -->
+                    <!-- <div class="product-overlay-info">
+                        <h4 id="selected-product-title">Procedural Headphones</h4>
+                        <span id="selected-product-brand">Default Studio</span>
+                        <p id="selected-product-desc">Highly polished, metallic default 3D headphones template. Tracks head movement and rotates accurately.</p>
+                    </div> -->
+
+                    <!-- Snapshot trigger button -->
+                    <button class="jeeliz-capture-btn" id="btn-screenshot-trigger" title="Snap Try-On">
+                        <div class="capture-icon-inner"></div>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Sidebar -->
+            <aside id="right-sidebar">
+                <div class="shortlist-box">
+                    <h3 class="shortlist-title">My Showroom</h3>
+                    <div class="shortlist-preview-container" id="shortlist-preview-container">
+                        <div class="avatar-silhouette" id="shortlist-placeholder">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="50" cy="35" r="18" fill="#252b36" />
+                                <path d="M50 56c-20 0-30 12-30 20v4h60v-4c0-8-10-20-35-20z" fill="#252b36" />
+                                <path d="M25 35c0-10 5-15 25-15s25 5 25 15c0 10-2 15-2 15h-46s-2-5-2-15z" fill="none" stroke="#06b6d4" stroke-width="2" stroke-dasharray="4 4" />
+                            </svg>
+                            <span class="placeholder-text">Take a snapshot to save your acoustic style</span>
+                        </div>
+                        <img id="shortlist-image" class="shortlist-snapshot-img" alt="Shortlisted Style" style="display: none;" />
+                    </div>
+                    <div class="shortlist-actions">
+                        <button class="action-circle-btn disabled" id="btn-reset-shortlist" title="Reset Photo">⟲</button>
+                        <button class="action-circle-btn disabled" id="btn-share-shortlist" title="Download Photo">✈</button>
+                        <button class="action-circle-btn disabled" id="btn-buy-shortlist" title="View Prices">🏷️</button>
+                    </div>
+                </div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/frontend/js/cameraManager.js?v=8"></script>
+    <script src="/frontend/js/faceTracker.js?v=8"></script>
+    <script src="/frontend/js/headphonesRenderer.js?v=8"></script>
+    <script src="/frontend/js/headphonesAPI.js?v=8"></script>
+    <script src="/frontend/js/headphonesApp.js?v=8"></script>
+</body>
+</html>

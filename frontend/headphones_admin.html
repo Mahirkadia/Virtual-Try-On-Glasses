@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Admin panel for Virtual Headphones Try-On — Upload and manage GLB headphones models.">
+    <title>Acoustic Gear Admin Panel | Virtual Try-On</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚙️</text></svg>">
+    
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/frontend/css/styles.css">
+
+    <!-- Three.js + OrbitControls (modules loaded and globally bound for 3D preview) -->
+    <script type="module">
+        import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+        import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+        import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+        
+        window.THREE = THREE;
+        window.THREE.GLTFLoader = GLTFLoader;
+        window.THREE.OrbitControls = OrbitControls;
+        
+        window.dispatchEvent(new Event('threejs-ready'));
+    </script>
+</head>
+<body class="admin-page">
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal-overlay" id="delete-modal">
+        <div class="modal">
+            <h3 class="modal-title">⚠️ Delete Acoustic Gear</h3>
+            <p class="modal-body">Are you sure you want to delete this audio model? This action cannot be undone and the GLB file will be deleted from disk.</p>
+            <div class="modal-actions">
+                <button class="btn" id="btn-cancel-delete">Cancel</button>
+                <button class="btn btn-danger" id="btn-confirm-delete">🗑️ Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <h1>⚙️ Acoustic Admin Panel</h1>
+            <nav class="admin-nav">
+                <a href="/headphones" class="btn btn-sm">🎧 Try-On App</a>
+                <button class="btn btn-primary btn-sm" id="btn-refresh">🔄 Refresh</button>
+            </nav>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon purple">🎧</div>
+                <div>
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">Total Models</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon cyan">📁</div>
+                <div>
+                    <div class="stat-value" id="stat-categories">0</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon emerald">✅</div>
+                <div>
+                    <div class="stat-value" id="stat-active">0</div>
+                    <div class="stat-label">Active</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon amber">💾</div>
+                <div>
+                    <div class="stat-value" id="stat-size">0 MB</div>
+                    <div class="stat-label">Storage Used</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <h2 class="section-title"><span class="icon">📤</span> Upload New Model</h2>
+            
+            <!-- GLB File Drag & Drop Dropzone -->
+            <div class="upload-zone" id="glb-upload-zone">
+                <span class="upload-zone-icon">📦</span>
+                <div class="upload-zone-title">Drop GLB Headphone/Earbud Here</div>
+                <div class="upload-zone-text">or click to browse files</div>
+                <div class="upload-zone-formats">
+                    <span class="format-badge">.GLB</span>
+                    <span class="format-badge">.GLTF</span>
+                </div>
+                <input type="file" id="glb-file-input" accept=".glb,.gltf" hidden>
+            </div>
+
+            <!-- File details (rendered after drop/browse selection) -->
+            <div class="file-info hidden" id="glb-file-info">
+                <span class="file-info-icon">📦</span>
+                <span class="file-info-name" id="glb-file-name">headphone.glb</span>
+                <span class="file-info-size" id="glb-file-size">0 KB</span>
+                <button class="btn btn-sm btn-danger" id="btn-remove-file">✕</button>
+            </div>
+
+            <!-- JSON Metadata upload (optional, for batch parameters) -->
+            <div class="json-upload-zone hidden" id="json-upload-zone">
+                <span>📋 Drop JSON config parameters here (optional)</span>
+                <input type="file" id="json-file-input" accept=".json" hidden>
+            </div>
+
+            <!-- Metadata parameters + Alignment Sliders form -->
+            <form class="upload-form" id="upload-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="headphones-name">Gear Name *</label>
+                        <input class="form-input" type="text" id="headphones-name" name="name" placeholder="e.g. Studio Pro Over-Ear" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="headphones-category">Category *</label>
+                        <select class="form-select" id="headphones-category" name="category" required>
+                            <option value="headphone">🎧 Headphone (Full Headband)</option>
+                            <option value="earbud">✨ Earbud (Twin placement)</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label" for="headphones-brand">Brand</label>
+                        <input class="form-input" type="text" id="headphones-brand" name="brand" placeholder="e.g. Beats, Sony, Bose">
+                    </div>
+                    <div class="form-group full-width">
+                        <label class="form-label" for="headphones-description">Description</label>
+                        <textarea class="form-textarea" id="headphones-description" name="description" placeholder="Technical/design description of the audio model..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Scaling Sliders -->
+                <div class="transform-section">
+                    <h3 class="transform-section-title">📐 Scale Multiplier</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-x" name="scale_x" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-x-value">1.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-y" name="scale_y" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-y-value">1.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z</div>
+                            <div class="slider-group">
+                                <input type="range" id="scale-z" name="scale_z" min="0.1" max="5.0" step="0.05" value="1.0">
+                                <span class="slider-value" id="scale-z-value">1.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Position Offset Sliders -->
+                <div class="transform-section">
+                    <h3 class="transform-section-title">📍 Position Translation Offset</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X (Left/Right)</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-x" name="position_offset_x" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-x-value">0.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y (Up/Down)</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-y" name="position_offset_y" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-y-value">0.00</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z (Forward/Backward)</div>
+                            <div class="slider-group">
+                                <input type="range" id="pos-z" name="position_offset_z" min="-1.0" max="1.0" step="0.01" value="0.0">
+                                <span class="slider-value" id="pos-z-value">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rotation Offset Sliders -->
+                <div class="transform-section">
+                    <h3 class="transform-section-title">🔄 Rotation Orientation Offset (degrees)</h3>
+                    <div class="transform-grid">
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">X (Pitch)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-x" name="rotation_offset_x" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-x-value">0°</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Y (Yaw)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-y" name="rotation_offset_y" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-y-value">0°</span>
+                            </div>
+                        </div>
+                        <div class="transform-axis">
+                            <div class="transform-axis-label">Z (Roll)</div>
+                            <div class="slider-group">
+                                <input type="range" id="rot-z" name="rotation_offset_z" min="-180" max="180" step="1" value="0">
+                                <span class="slider-value" id="rot-z-value">0°</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3D Orbit Preview Container (shown only when model loaded) -->
+                <div class="transform-section" id="preview-section" style="display: none;">
+                    <h3 class="transform-section-title">👁️ 3D Model Verification</h3>
+                    <canvas id="preview-canvas" style="width: 100%; height: 300px; border-radius: var(--radius-md); background: #111;"></canvas>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn" id="btn-cancel-upload">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="btn-submit-upload">
+                        📤 Upload Gear
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Managed Catalog gallery table -->
+        <section class="glasses-management">
+            <h2 class="section-title"><span class="icon">📋</span> Active Acoustic Models</h2>
+
+            <div class="glasses-table-wrapper">
+                <table class="glasses-table" id="headphones-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Brand</th>
+                            <th>Scale</th>
+                            <th>File Name</th>
+                            <th>Created At</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="headphones-table-body">
+                        <tr>
+                            <td colspan="8" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                                Loading active acoustic models...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/frontend/js/headphonesAPI.js?v=4"></script>
+    <script src="/frontend/js/headphonesAdmin.js?v=4"></script>
+</body>
+</html>

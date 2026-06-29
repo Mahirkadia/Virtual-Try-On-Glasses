@@ -632,3 +632,34 @@ main {
     0% { opacity: 0; transform: translateY(-10px); }
     100% { opacity: 1; transform: translateY(0); }
 }
+
+/* ---------- Navigation Tabs for VTO switching ---------- */
+.section-nav-tabs {
+    display: flex;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    padding: 4px;
+    border-radius: 30px;
+}
+
+.section-nav-link {
+    padding: 6px 14px;
+    border-radius: 30px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: all 0.25s ease;
+}
+
+.section-nav-link:hover {
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.section-nav-link.active {
+    background: rgba(197, 168, 128, 0.15);
+    color: var(--gold);
+    border: 1px solid rgba(197, 168, 128, 0.3);
+}
+

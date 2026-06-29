@@ -531,9 +531,8 @@ class FaceTracker {
             roll  = 0;
         }
 
-        // Negate yaw and roll: canvas is horizontally mirrored (CSS scaleX(-1)),
-        // so left/right head turns and tilts must be flipped to stay aligned.
-        yaw = -yaw;
+        // Canvas is horizontally mirrored (CSS scaleX(-1)).
+        // We negate roll to keep tilt aligned. Yaw is kept as-is to correctly track head turns.
         roll = -roll;
 
         return { pitch, yaw, roll };

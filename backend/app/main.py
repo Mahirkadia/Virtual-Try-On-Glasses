@@ -12,8 +12,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import Base, engine, SessionLocal
-from .models import Jewelry
-from .routers import glasses, jewelry
+from .models import Jewelry, Headphones
+from .routers import glasses, jewelry, headphones
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -167,6 +167,7 @@ app.add_middleware(
 
 app.include_router(glasses.router)
 app.include_router(jewelry.router)
+app.include_router(headphones.router)
 
 # ---------------------------------------------------------------------------
 # Static file mounts
@@ -222,5 +223,24 @@ async def jewelry_admin():
     if jewelry_admin_page.exists():
         return FileResponse(str(jewelry_admin_page))
     return {"message": "Jewelry admin page not found. Place jewelry_admin.html in the frontend/ directory."}
+
+
+@app.get("/headphones", include_in_schema=False)
+async def headphones():
+    """Serve the headphones try-on page."""
+    headphones_page = _FRONTEND_DIR / "headphones.html"
+    if headphones_page.exists():
+        return FileResponse(str(headphones_page))
+    return {"message": "Headphones page not found. Place headphones.html in the frontend/ directory."}
+
+
+@app.get("/headphones-admin", include_in_schema=False)
+async def headphones_admin():
+    """Serve the headphones admin panel page."""
+    headphones_admin_page = _FRONTEND_DIR / "headphones_admin.html"
+    if headphones_admin_page.exists():
+        return FileResponse(str(headphones_admin_page))
+    return {"message": "Headphones admin page not found. Place headphones_admin.html in the frontend/ directory."}
+
 
 

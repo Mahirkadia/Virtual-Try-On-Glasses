@@ -11,8 +11,8 @@ from fastapi import UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from .models import Glasses, Jewelry
-from .schemas import GlassesCreate, GlassesUpdate, JewelryCreate, JewelryUpdate
+from .models import Glasses, Jewelry, Headphones
+from .schemas import GlassesCreate, GlassesUpdate, JewelryCreate, JewelryUpdate, HeadphonesCreate, HeadphonesUpdate
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 
@@ -299,4 +299,125 @@ def get_jewelry_categories(db: Session) -> Sequence[Tuple[str, int]]:
         .all()
     )
     return rows
+
+
+# ===========================================================================
+# Headphones CRUD
+# ===========================================================================
+
+def create_headphones(
+    db: Session,
+    headphones_data: HeadphonesCreate,
+    glb_file: UploadFile,
+) -> Headphones:
+    """Save the uploaded GLB file and insert a new Headphones row."""
+    uuid_filename, original_filename, file_size = _save_upload(glb_file)
+
+    db_headphones = Headphones(
+        **headphones_data.model_dump(),
+        glb_filename=uuid_filename,
+        original_filename=original_filename,
+        file_size=file_size,
+    )
+    db.add(db_headphones)
+    db.commit()
+    db.refresh(db_headphones)
+    return db_headphones
+
+
+def get_headphones(db: Session, headphones_id: int) -> Optional[Headphones]:
+    """Return a single Headphones row by primary key, or ``None``."""
+    return db.query(Headphones).filter(Headphones.id == headphones_id).first()
+
+
+def get_all_headphones(
+    db: Session,
+    category: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+) -> Tuple[List[Headphones], int]:
+    """Return a paginated list of headphones with an optional category filter.
+
+    Returns:
+        (items, total_count)
+    """
+    query = db.query(Headphones).filter(Headphones.is_active == True)  # noqa: E712
+
+    if category:
+        query = query.filter(Headphones.category == category)
+
+    total = query.count()
+    items = query.order_by(Headphones.created_at.desc()).offset(skip).limit(limit).all()
+    return items, total
+
+
+def update_headphones(
+    db: Session,
+    headphones_id: int,
+    update_data: HeadphonesUpdate,
+) -> Optional[Headphones]:
+    """Apply a partial update to an existing Headphones row."""
+    db_headphones = get_headphones(db, headphones_id)
+    if db_headphones is None:
+        return None
+
+    update_dict = update_data.model_dump(exclude_unset=True)
+    for field, value in update_dict.items():
+        setattr(db_headphones, field, value)
+
+    db.commit()
+    db.refresh(db_headphones)
+    return db_headphones
+
+
+def update_headphones_file(
+    db: Session,
+    headphones_id: int,
+    new_file: UploadFile,
+) -> Optional[Headphones]:
+    """Replace the GLB file for an existing headphones entry."""
+    db_headphones = get_headphones(db, headphones_id)
+    if db_headphones is None:
+        return None
+
+    # Remove the old file
+    _delete_file(db_headphones.glb_filename)
+
+    # Save the new one
+    uuid_filename, original_filename, file_size = _save_upload(new_file)
+    db_headphones.glb_filename = uuid_filename
+    db_headphones.original_filename = original_filename
+    db_headphones.file_size = file_size
+
+    db.commit()
+    db.refresh(db_headphones)
+    return db_headphones
+
+
+def delete_headphones(db: Session, headphones_id: int) -> bool:
+    """Delete a Headphones row and its associated GLB file.
+
+    Returns ``True`` if the row existed and was deleted.
+    """
+    db_headphones = get_headphones(db, headphones_id)
+    if db_headphones is None:
+        return False
+
+    _delete_file(db_headphones.glb_filename)
+    db.delete(db_headphones)
+    db.commit()
+    return True
+
+
+def get_headphones_categories(db: Session) -> Sequence[Tuple[str, int]]:
+    """Return distinct headphones categories with their active counts."""
+    rows = (
+        db.query(Headphones.category, func.count(Headphones.id))
+        .filter(Headphones.is_active == True)  # noqa: E712
+        .group_by(Headphones.category)
+        .order_by(Headphones.category)
+        .all()
+    )
+    return rows
+
 

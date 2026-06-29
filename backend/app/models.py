@@ -105,3 +105,48 @@ class Jewelry(Base):
     def __repr__(self) -> str:
         return f"<Jewelry(id={self.id}, name='{self.name}', category='{self.category}')>"
 
+
+class Headphones(Base):
+    """ORM model representing a headphones or earbuds item with its 3D model metadata."""
+
+    __tablename__ = "headphones"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(200), nullable=False, index=True)
+    category = Column(String(100), nullable=False, default="headphone", index=True)
+    brand = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+
+    # File storage
+    glb_filename = Column(String(255), nullable=False, unique=True)
+    original_filename = Column(String(255), nullable=False)
+    file_size = Column(Integer, nullable=True)  # Size in bytes
+
+    # 3D Transform — Scale
+    scale_x = Column(Float, nullable=False, default=1.0)
+    scale_y = Column(Float, nullable=False, default=1.0)
+    scale_z = Column(Float, nullable=False, default=1.0)
+
+    # 3D Transform — Position offset
+    position_offset_x = Column(Float, nullable=False, default=0.0)
+    position_offset_y = Column(Float, nullable=False, default=0.0)
+    position_offset_z = Column(Float, nullable=False, default=0.0)
+
+    # 3D Transform — Rotation offset (degrees)
+    rotation_offset_x = Column(Float, nullable=False, default=0.0)
+    rotation_offset_y = Column(Float, nullable=False, default=0.0)
+    rotation_offset_z = Column(Float, nullable=False, default=0.0)
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    # Timestamps
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<Headphones(id={self.id}, name='{self.name}', category='{self.category}')>"
+
+
